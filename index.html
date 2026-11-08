@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>UniMate</title>
+<style>
+:root{--bg:#f4f6fb;--card:#fff;--tx:#1b2330;--mut:#667186;--ac:#2f5bea;--act:#fff;--bd:#dfe4ee;--bad:#d03a3a;--warn:#c27a00;--ok:#1a9460;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f131b;--card:#1a2030;--tx:#e8ecf5;--mut:#98a2b8;--ac:#7c9bff;--act:#0f131b;--bd:#2a3347;--bad:#ff7d7d;--warn:#f0b34a;--ok:#4cd694;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0f131b;--card:#1a2030;--tx:#e8ecf5;--mut:#98a2b8;--ac:#7c9bff;--act:#0f131b;--bd:#2a3347;--bad:#ff7d7d;--warn:#f0b34a;--ok:#4cd694;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+h1,h2,h3{margin:0 0 8px}h2{font-size:20px}h3{font-size:16px}
+.wrap{max-width:980px;margin:0 auto;padding:14px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px;margin:0 0 12px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.top small{color:var(--mut)}
+nav{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:8px}
+nav button{white-space:nowrap;background:var(--card);color:var(--tx);border:1px solid var(--bd)}
+nav button.on{background:var(--ac);color:var(--act);border-color:var(--ac)}
+button{background:var(--ac);color:var(--act);border:0;border-radius:8px;padding:8px 12px;font:inherit;cursor:pointer}
+button:disabled{opacity:.4;cursor:default}
+button.x{background:none;color:var(--bad);padding:2px 8px}
+button.g{background:var(--card);color:var(--tx);border:1px solid var(--bd)}
+input,select{font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:8px;width:100%}
+label{display:block;font-size:13px;color:var(--mut)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:10px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}.bar input,.bar select{width:auto;flex:1;min-width:140px}
+.sc{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:480px}
+th,td{text-align:left;padding:8px;border-bottom:1px solid var(--bd);vertical-align:middle}th{font-size:12px;color:var(--mut);text-transform:uppercase}
+.bad{color:var(--bad)}.warn{color:var(--warn)}.ok{color:var(--ok)}.mut{color:var(--mut)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
+.kpi{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px}.kpi b{display:block;font-size:24px}
+.pb{height:8px;background:var(--bd);border-radius:6px;overflow:hidden}.pb i{display:block;height:100%;background:var(--ac)}
+.auth{max-width:380px;margin:6vh auto}.auth input{margin-bottom:8px}
+.flash{padding:8px 12px;border-radius:8px;background:var(--card);border:1px solid var(--bd);margin-bottom:10px}
+@media print{nav,.top button,.bar,button{display:none!important}}
+</style></head>
+<body><div class="wrap" id="app"></div>
+<script>
+const DAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],P=['High','Medium','Low'],S=['Pending','In Progress','Completed'];
+const GR={'A+':4,'A':3.75,'A-':3.5,'B+':3.25,'B':3,'B-':2.75,'C+':2.5,'C':2.25,'D':2,'F':0};
+const ld=k=>{try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}};
+const sv=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const dl=d=>Math.round((new Date(d+'T12:00')-new Date(iso(new Date())+'T12:00'))/864e5);
+const hash=s=>{let h=5381;for(const c of s)h=(h*33+c.charCodeAt(0))>>>0;return h.toString(36)};
+const num=n=>Math.round(n*100)/100;
+let U=null,tab='dash',Q='',flash='',ST=[];
+const users=()=>ld('unimate:users')||{};
+const save=()=>sv('unimate:d:'+U.u,U);
+const mk=(u,name,sid)=>({u,name,sid,tasks:[],tt:[],ex:[],att:[],gpa:[],st:[],bud:[],notes:[],cfg:{daily:120,weekly:600,budget:0,sort:'due'}});
+const A=document.getElementById('app');
+const F={
+ tasks:[['title','Title'],['course','Course'],['due','Deadline','date'],['pri','Priority','sel',P],['est','Est. minutes','number']],
+ tt:[['day','Day','sel',DAYS],['course','Course'],['start','Start','time'],['end','End','time'],['room','Room']],
+ ex:[['course','Course'],['date','Exam date','date']],
+ att:[['course','Course'],['target','Target %','number']],
+ gpa:[['course','Course'],['cr','Credits','number'],['gr','Grade','sel',Object.keys(GR)]],
+ st:[['date','Date','date'],['min','Minutes','number'],['sub','Subject']],
+ bud:[['date','Date','date'],['cat','Category'],['amt','Amount','number']],
+ notes:[['sub','Subject'],['title','Title'],['link','Link or file path']]};
+const TABS=[['dash','Dashboard'],['tasks','Tasks'],['tt','Timetable'],['ex','Exams'],['att','Attendance'],['gpa','GPA'],['st','Study'],['bud','Budget'],['notes','Notes']];
+const form=m=>`<div class="card"><div class="grid">${F[m].map(([k,l,t,o])=>`<label>${l}${t=='sel'?`<select id="f-${k}">${o.map(x=>`<option>${x}</option>`).join('')}</select>`:`<input id="f-${k}" type="${t||'text'}"${t=='number'?' min="0" step="any"':''}${t=='date'&&m!='ex'&&m!='tasks'?' value="'+iso(new Date())+'"':''}>`}</label>`).join('')}</div><button data-add="${m}">Add</button></div>`;
+const table=(h,r)=>r.length?`<div class="card sc"><table><tr>${h.map(x=>`<th>${x}</th>`).join('')}</tr>${r.map(x=>`<tr>${x.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</table></div>`:'<div class="card mut">Nothing here yet.</div>';
+const del=(m,id)=>`<button class="x" data-del="${m}:${id}" title="Delete">✕</button>`;
+const bar=p=>`<div class="pb"><i style="width:${Math.max(0,Math.min(100,p))}%"></i></div>`;
+const fl=t=>t.status=='Completed'?'':dl(t.due)<0?'<b class="bad">OVERDUE</b>':dl(t.due)<=2?'<b class="warn">DUE SOON</b>':'';
+const sc=t=>{const d=dl(t.due);return(3-P.indexOf(t.pri))*20+(d<0?60+Math.min(-d,10):Math.max(0,30-d)*1.5)-t.est/30};
+const rec=()=>U.tasks.filter(t=>t.status!='Completed').sort((a,b)=>sc(b)-sc(a));
+const recTxt=()=>{const t=rec()[0];if(!t)return'No open tasks. You are all caught up!';const d=dl(t.due);return`<b>${esc(t.title)}</b> (${esc(t.course)}): ${t.pri} priority, ${d<0?'overdue by '+(-d)+' day(s)':d==0?'due today':'due in '+d+' day(s)'}, about ${t.est} min`};
+const gpaOf=()=>{let c=0,p=0;U.gpa.forEach(g=>{c+=g.cr;p+=g.cr*GR[g.gr]});return c?p/c:0};
+const week=()=>{const a=[0,0,0,0,0,0,0];U.st.forEach(s=>{const ago=-dl(s.date);if(ago>=0&&ago<7)a[6-ago]+=s.min});return a};
+const classes=wd=>U.tt.filter(c=>c.day==DAYS[wd]).sort((a,b)=>a.start.localeCompare(b.start));
+const nextCls=()=>{const n=new Date(),now=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');for(let k=0;k<7;k++){const wd=(n.getDay()+k)%7;for(const c of classes(wd))if(k>0||c.start>now)return`${esc(c.course)} at ${c.start} in ${esc(c.room)} (${k?DAYS[wd]:'today'})`}return'No upcoming classes'};
+const monthBud=()=>{const m=iso(new Date()).slice(0,7),by={};let t=0;U.bud.filter(b=>b.date.slice(0,7)==m).forEach(b=>{by[b.cat]=(by[b.cat]||0)+b.amt;t+=b.amt});const top=Object.entries(by).sort((a,b)=>b[1]-a[1])[0];return{t,by,top}};
+
+const V={};
+V.dash=()=>{
+ const T=U.tasks,done=T.filter(t=>t.status=='Completed').length,pct=T.length?Math.round(100*done/T.length):0,od=T.filter(t=>t.status!='Completed'&&dl(t.due)<0).length;
+ const wk=week().reduce((a,b)=>a+b,0),n=new Date(),tc=classes(n.getDay()),bu=monthBud();
+ const ex=U.ex.filter(e=>dl(e.date)>=0&&dl(e.date)<=30).sort((a,b)=>a.date.localeCompare(b.date));
+ const low=U.att.filter(a=>a.att+a.mis>0&&100*a.att/(a.att+a.mis)<a.target);
+ return`<div class="kpis"><div class="kpi">Tasks done<b>${pct}%</b>${bar(pct)}</div><div class="kpi">Pending / overdue<b>${T.filter(t=>t.status=='Pending').length} / <span class="${od?'bad':''}">${od}</span></b></div><div class="kpi">Study (7 days)<b>${wk} min</b><span class="mut">goal ${U.cfg.weekly}</span></div><div class="kpi">GPA<b>${U.gpa.length?num(gpaOf()).toFixed(2):'-'}</b></div></div>
+ <div class="card"><h3>Study recommendation</h3>${recTxt()}</div>
+ <div class="card"><h3>Today’s classes (${DAYS[n.getDay()]})</h3>${tc.length?tc.map(c=>`${c.start}-${c.end} ${esc(c.course)} @ ${esc(c.room)}`).join('<br>'):'<span class="mut">None</span>'}<p class="mut">Next: ${nextCls()}</p></div>
+ <div class="card"><h3>Upcoming exams (30 days)</h3>${ex.length?ex.map(e=>`${esc(e.course)} on ${e.date} (${dl(e.date)} days left)`).join('<br>'):'<span class="mut">None</span>'}</div>
+ <div class="card"><h3>Alerts</h3>${low.length?low.map(a=>`<span class="bad">Attendance below target in ${esc(a.course)}: ${Math.round(100*a.att/(a.att+a.mis))}%</span>`).join('<br>'):'<span class="ok">Attendance is on track.</span>'}<br>${U.cfg.budget>0?`Budget: spent ${num(bu.t)} of ${U.cfg.budget}`+(bu.t>U.cfg.budget?' <b class="bad">(over budget)</b>':''):'<span class="mut">No monthly budget set.</span>'}</div>
+ <button class="g" data-a="print">Print progress report</button>`};
+V.tasks=()=>{
+ const sr=U.cfg.sort,q=Q.toLowerCase(),pi=t=>P.indexOf(t.pri);
+ const L=U.tasks.filter(t=>(t.title+' '+t.course).toLowerCase().includes(q)).sort(sr=='pri'?(a,b)=>pi(a)-pi(b)||a.due.localeCompare(b.due):(a,b)=>a.due.localeCompare(b.due)||pi(a)-pi(b));
+ return`<div class="card"><h3>Study recommendation</h3>${recTxt()}</div>`+form('tasks')+
+ `<div class="bar"><input id="q" placeholder="Search tasks, press Enter" value="${esc(Q)}"><select id="sort"><option value="due"${sr=='due'?' selected':''}>Sort by deadline</option><option value="pri"${sr=='pri'?' selected':''}>Sort by priority</option></select><button data-a="next">Start next pending (queue)</button><button class="g" data-a="undo"${ST.length?'':' disabled'}>Undo</button></div>`+
+ table(['Task','Course','Priority','Deadline','Min','Status','',''],L.map(t=>[esc(t.title),esc(t.course),t.pri,t.due,t.est,`<button class="g" data-st="${t.id}">${t.status}</button>`,fl(t),del('tasks',t.id)]))};
+V.tt=()=>form('tt')+table(['Day','Time','Course','Room',''],[...U.tt].sort((a,b)=>DAYS.indexOf(a.day)-DAYS.indexOf(b.day)||a.start.localeCompare(b.start)).map(c=>[c.day,c.start+'-'+c.end,esc(c.course),esc(c.room),del('tt',c.id)]))+`<div class="card">Next class: ${nextCls()}</div>`;
+V.ex=()=>form('ex')+table(['Course','Date','Days left',''],[...U.ex].sort((a,b)=>a.date.localeCompare(b.date)).map(e=>{const d=dl(e.date);return[esc(e.course),e.date,d<0?'<span class="mut">passed</span>':d==0?'<b class="bad">TODAY</b>':d+' day(s)',del('ex',e.id)]}));
+V.att=()=>form('att')+table(['Course','Attended','Missed','Percent','Target','',''],U.att.map(a=>{const t=a.att+a.mis,p=t?100*a.att/t:100,lo=t&&p<a.target;return[esc(a.course),a.att,a.mis,`<span class="${lo?'bad':'ok'}">${Math.round(p)}%</span>${lo?' ⚠':''}`,a.target+'%',`<button data-at="${a.id}:att">+ Attended</button> <button class="g" data-at="${a.id}:mis">+ Missed</button>`,del('att',a.id)]}));
+V.gpa=()=>form('gpa')+table(['Course','Credits','Grade','Points',''],U.gpa.map(g=>[esc(g.course),g.cr,g.gr,GR[g.gr].toFixed(2),del('gpa',g.id)]))+`<div class="card"><h3>Semester GPA: ${U.gpa.length?num(gpaOf()).toFixed(2):'-'}</h3><span class="mut">4.00 scale, ${U.gpa.reduce((a,g)=>a+g.cr,0)} credits</span></div>`;
+V.st=()=>{const w=week(),tot=w.reduce((a,b)=>a+b,0),n=new Date(),lab=i=>{const d=new Date(n);d.setDate(d.getDate()-6+i);return DAYS[d.getDay()].slice(0,3)};
+ return form('st')+`<div class="card"><h3>Goals (minutes)</h3><div class="grid"><label>Daily<input id="g-daily" type="number" value="${U.cfg.daily}"></label><label>Weekly<input id="g-weekly" type="number" value="${U.cfg.weekly}"></label></div><button data-a="goals">Save goals</button></div><div class="card"><h3>Last 7 days</h3>${w.map((m,i)=>`<div>${lab(i)} ${m} min${m>=U.cfg.daily?' ✓':''}${bar(100*m/U.cfg.daily)}</div>`).join('')}<p>Week total: <b>${tot}</b> / ${U.cfg.weekly} min (${Math.min(100,Math.round(100*tot/U.cfg.weekly))}%)</p></div>`+table(['Date','Minutes','Subject',''],[...U.st].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,15).map(s=>[s.date,s.min,esc(s.sub),del('st',s.id)]))};
+V.bud=()=>{const b=monthBud(),bg=U.cfg.budget;
+ return form('bud')+`<div class="card"><h3>Monthly budget</h3><div class="bar"><input id="g-budget" type="number" min="0" value="${bg}"><button data-a="budget">Save budget</button></div>Spent <b>${num(b.t)}</b> of ${bg}, remaining <b class="${b.t>bg?'bad':'ok'}">${num(bg-b.t)}</b>${bar(bg?100*b.t/bg:0)}${b.top?`<p>Highest category: <b>${esc(b.top[0])}</b> (${num(b.top[1])})</p>`:''}${Object.entries(b.by).map(([k,v])=>`${esc(k)}: ${num(v)}`).join(' · ')}</div>`+table(['Date','Category','Amount',''],[...U.bud].sort((a,c)=>c.date.localeCompare(a.date)).slice(0,20).map(e=>[e.date,esc(e.cat),e.amt,del('bud',e.id)]))};
+V.notes=()=>form('notes')+`<div class="bar"><input id="q" placeholder="Filter by subject, press Enter" value="${esc(Q)}"></div>`+table(['Subject','Title','Link / path',''],U.notes.filter(n=>n.sub.toLowerCase().includes(Q.toLowerCase())).map(n=>[esc(n.sub),esc(n.title),/^https?:/.test(n.link)?`<a href="${esc(n.link)}" target="_blank" rel="noopener">${esc(n.link)}</a>`:esc(n.link),del('notes',n.id)]));
+
+function render(){
+ if(!U){A.innerHTML=`<div class="auth"><h1>UniMate</h1><p class="mut">University student companion</p>${flash?`<div class="flash">${flash}</div>`:''}<div class="card"><h3>Log in</h3><input id="lu" placeholder="Username"><input id="lp" type="password" placeholder="Password"><button data-a="login">Log in</button></div><div class="card"><h3>Create account</h3><input id="ru" placeholder="Username"><input id="rp" type="password" placeholder="Password (min 4 characters)"><input id="rn" placeholder="Full name"><input id="ri" placeholder="Student ID"><button data-a="reg">Create account</button></div></div>`;flash='';return}
+ const t=TABS.find(x=>x[0]==tab);
+ A.innerHTML=`<div class="top"><div><h2>UniMate</h2><small>${esc(U.name)} · ID ${esc(U.sid)}</small></div><button class="g" data-a="out">Log out</button></div><nav>${TABS.map(([k,l])=>`<button class="${k==tab?'on':''}" data-tab="${k}">${l}</button>`).join('')}</nav>${flash?`<div class="flash">${flash}</div>`:''}<h3>${t[1]}</h3>${V[tab]()}`;flash='';
+}
+const val=id=>(document.getElementById(id)||{}).value||'';
+document.addEventListener('click',e=>{
+ const b=e.target.closest('button');if(!b)return;const d=b.dataset;
+ if(d.tab){tab=d.tab;Q='';return render()}
+ if(d.add){const m=d.add,r={id:Date.now()+Math.random()};
+  for(const[k,l,t]of F[m]){let v=val('f-'+k).trim();if(!v){flash='Please fill in: '+l;return render()}if(t=='number'){v=+v;if(!(v>=0)||(k=='cr'||k=='est'||k=='min')&&v<=0){flash='Enter a valid number for: '+l;return render()}}r[k]=v}
+  if(m=='tasks'){ST.push(JSON.stringify(U.tasks));r.status='Pending'}if(m=='tt'&&r.end<=r.start){flash='End time must be after start time';return render()}if(m=='att'){r.att=0;r.mis=0}
+  U[m].push(r);save();flash='Added.';return render()}
+ if(d.del){const[m,id]=d.del.split(':');if(m=='tasks')ST.push(JSON.stringify(U.tasks));U[m]=U[m].filter(x=>String(x.id)!=id);save();return render()}
+ if(d.st){ST.push(JSON.stringify(U.tasks));const t=U.tasks.find(x=>String(x.id)==d.st);t.status=S[(S.indexOf(t.status)+1)%3];save();return render()}
+ if(d.at){const[id,k]=d.at.split(':'),a=U.att.find(x=>String(x.id)==id);a[k]++;save();flash=k=='att'?'Attended recorded.':'Missed recorded.';const p=100*a.att/(a.att+a.mis);if(p<a.target)flash+=' Alert: attendance is below your '+a.target+'% target!';return render()}
+ switch(d.a){
+  case'login':{const u=val('lu').trim(),x=users()[u];if(x&&x.h==hash(val('lp'))){U=Object.assign(mk(u,x.name,x.sid),ld('unimate:d:'+u)||{});tab='dash';ST=[]}else flash='Wrong username or password.';return render()}
+  case'reg':{const u=val('ru').trim(),p=val('rp'),n=val('rn').trim(),i=val('ri').trim(),us=users();
+   if(!/^\w+$/.test(u))flash='Username: letters, digits and underscore only.';else if(us[u])flash='That username is taken.';else if(p.length<4)flash='Password must be at least 4 characters.';else if(!n||!i)flash='Enter your name and student ID.';
+   else{us[u]={h:hash(p),name:n,sid:i};sv('unimate:users',us);flash='Account created. You can log in now.'}return render()}
+  case'out':U=null;ST=[];return render();
+  case'next':{const t=U.tasks.find(x=>x.status=='Pending');if(!t)flash='No pending tasks in the queue.';else{ST.push(JSON.stringify(U.tasks));t.status='In Progress';save();flash='Next in line (first in, first out): '+esc(t.title)}return render()}
+  case'undo':if(ST.length){U.tasks=JSON.parse(ST.pop());save();flash='Last change undone.'}return render();
+  case'goals':U.cfg.daily=Math.max(1,+val('g-daily')||120);U.cfg.weekly=Math.max(1,+val('g-weekly')||600);save();flash='Goals saved.';return render();
+  case'budget':U.cfg.budget=Math.max(0,+val('g-budget')||0);save();flash='Budget saved.';return render();
+  case'print':return window.print()}
+});
+document.addEventListener('change',e=>{
+ if(e.target.id=='q'){Q=e.target.value;render()}
+ if(e.target.id=='sort'){U.cfg.sort=e.target.value;save();render()}});
+render();
+</script></body></html>
